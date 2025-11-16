@@ -4,35 +4,23 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
-#include <sys/resource.h>
-#include <spawn.h>
 #include <errno.h>
 
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
+#define MAX_LINE 2048
 
 extern char **environ;
 
 // Statistics
 typedef struct {
     long total_spawns;
-    long fork_calls;
-    long posix_spawn_calls;
-    long total_time_us;
     long optimized_count;
-    long analyzed_count;
+    long not_optimized_count;
+    long total_time_us;
 } ShellStats;
 
 ShellStats stats = {0};
-
-// Simple cache
-typedef struct {
-    char program[256];
-    int can_optimize;
-} CacheEntry;
-
-CacheEntry cache[50];
-int cache_count = 0;
 
 long get_time_us() {
     struct timeval tv;
@@ -51,225 +39,256 @@ int parse_command(char *input, char **args) {
     return i;
 }
 
-// Check cache
-int check_cache(const char *prog) {
-    for (int i = 0; i < cache_count; i++) {
-        if (strcmp(cache[i].program, prog) == 0) {
-            return cache[i].can_optimize;
-        }
-    }
-    return -1;  // Not in cache
-}
-
-// Add to cache
-void add_cache(const char *prog, int can_opt) {
-    if (cache_count < 50) {
-        strncpy(cache[cache_count].program, prog, 255);
-        cache[cache_count].can_optimize = can_opt;
-        cache_count++;
-    }
-}
-
-// SUPER SIMPLE: Search the source code for exec patterns
-int analyze_source_code(const char *source_path) {
+// Check if source has fork+exec pattern
+int has_fork_exec_pattern(const char *source_path) {
     FILE *fp = fopen(source_path, "r");
     if (!fp) return 0;
     
-    char line[1024];
-    int found_exec = 0;
+    char line[MAX_LINE];
+    int has_fork = 0;
+    int has_exec = 0;
     
     while (fgets(line, sizeof(line), fp)) {
-        // Look for exec function calls in source
-        if (strstr(line, "execl(") || 
-            strstr(line, "execle(") ||
-            strstr(line, "execlp(") ||
-            strstr(line, "execv(") ||
-            strstr(line, "execve(") ||
-            strstr(line, "execvp(")) {
-            found_exec = 1;
-            // Extract and show what they're executing
-            printf("    Found: %s", line);
-            break;
+        if (strstr(line, "fork()")) {
+            has_fork = 1;
         }
+        if (strstr(line, "execl(") || strstr(line, "execv(") || 
+            strstr(line, "execve(") || strstr(line, "execvp(")) {
+            has_exec = 1;
+        }
+        
+        if (has_fork && has_exec) break;
     }
     
     fclose(fp);
-    return found_exec;
+    return (has_fork && has_exec);
+}
+
+// Rewrite source code to use posix_spawn
+int rewrite_to_posix_spawn(const char *source_path, const char *output_path) {
+    FILE *in = fopen(source_path, "r");
+    FILE *out = fopen(output_path, "w");
+    
+    if (!in || !out) {
+        if (in) fclose(in);
+        if (out) fclose(out);
+        return 0;
+    }
+    
+    char line[MAX_LINE];
+    int in_fork_block = 0;
+    int added_spawn_include = 0;
+    
+    // Add spawn.h include at the top
+    fprintf(out, "#include <spawn.h>\n");
+    fprintf(out, "extern char **environ;\n\n");
+    
+    while (fgets(line, sizeof(line), in)) {
+        // Skip original includes of spawn.h to avoid duplicates
+        if (strstr(line, "#include") && strstr(line, "spawn.h")) {
+            continue;
+        }
+        
+        // Detect fork() call
+        if (strstr(line, "fork()")) {
+            // Comment out the original fork line
+            fprintf(out, "    // SPORK OPTIMIZED: Original fork() below\n");
+            fprintf(out, "    // %s", line);
+            fprintf(out, "    pid_t pid;\n");
+            fprintf(out, "    char *args[] = {NULL}; // Will be set before exec\n");
+            in_fork_block = 1;
+            continue;
+        }
+        
+        // Detect exec call and replace with posix_spawn
+        if (in_fork_block && (strstr(line, "execl(") || strstr(line, "execve(") || 
+                              strstr(line, "execv(") || strstr(line, "execvp("))) {
+            fprintf(out, "    // SPORK OPTIMIZED: Replaced fork+exec with posix_spawn\n");
+            
+            // Extract the executable path from execl("/bin/echo", ...)
+            char *exec_start = strstr(line, "execl(");
+            if (exec_start) {
+                char *path_start = strchr(exec_start, '"');
+                if (path_start) {
+                    path_start++; // Skip opening quote
+                    char *path_end = strchr(path_start, '"');
+                    if (path_end) {
+                        char exec_path[256];
+                        int len = path_end - path_start;
+                        strncpy(exec_path, path_start, len);
+                        exec_path[len] = '\0';
+                        
+                        fprintf(out, "    args[0] = \"%s\";\n", exec_path);
+                        fprintf(out, "    posix_spawn(&pid, \"%s\", NULL, NULL, args, environ);\n", exec_path);
+                    }
+                }
+            }
+            in_fork_block = 0;
+            continue;
+        }
+        
+        // Skip _exit after exec (not needed with posix_spawn)
+        if (in_fork_block && strstr(line, "_exit")) {
+            continue;
+        }
+        
+        // Write regular lines
+        fprintf(out, "%s", line);
+    }
+    
+    fclose(in);
+    fclose(out);
+    return 1;
 }
 
 void cmd_stats() {
-    printf("\n=== SIMPLE SPORK-SHELL STATISTICS ===\n");
-    printf("Total spawns:           %ld\n", stats.total_spawns);
-    printf("  fork() calls:         %ld\n", stats.fork_calls);
-    printf("  vfork() calls:        %ld\n", stats.posix_spawn_calls);
+    printf("\n=== SPORK REWRITE SHELL STATISTICS ===\n");
+    printf("Total programs run:     %ld\n", stats.total_spawns);
+    printf("  Optimized (rewrite):  %ld\n", stats.optimized_count);
+    printf("  Not optimized:        %ld\n", stats.not_optimized_count);
     printf("\n");
-    printf("Total execution time:   %ld microseconds (%.3f ms)\n", 
+    printf("Total execution time:   %ld microseconds (%.3f μs)\n", 
            stats.total_time_us, stats.total_time_us / 1000.0);
     if (stats.total_spawns > 0) {
-        printf("Average time per spawn: %ld microseconds\n", 
+        printf("Average time per run:   %ld microseconds\n", 
                stats.total_time_us / stats.total_spawns);
     }
-    printf("\n");
-    printf("Binaries analyzed:      %ld\n", stats.analyzed_count);
-    printf("Optimized:              %ld (%.1f%%)\n", 
-           stats.optimized_count,
-           stats.analyzed_count > 0 ? 
-           (stats.optimized_count * 100.0 / stats.analyzed_count) : 0);
-    printf("Cache entries:          %d\n", cache_count);
-    printf("=====================================\n\n");
+    printf("======================================\n\n");
 }
 
 void cmd_reset() {
     memset(&stats, 0, sizeof(stats));
-    cache_count = 0;
-    printf("[RESET] Statistics and cache cleared\n");
-}
-
-void cmd_cache() {
-    printf("\n=== ANALYSIS CACHE ===\n");
-    if (cache_count == 0) {
-        printf("Cache is empty\n");
-    } else {
-        for (int i = 0; i < cache_count; i++) {
-            printf("%s -> %s\n", 
-                   cache[i].program, 
-                   cache[i].can_optimize ? "SPAWN" : "FORK");
-        }
-    }
-    printf("======================\n\n");
+    printf("[RESET] Statistics cleared\n");
 }
 
 void cmd_help() {
-    printf("\n=== SIMPLE SPORK-SHELL ===\n");
-    printf("MVP: Detects exec() in .c source files\n\n");
+    printf("\n=== SPORK REWRITE SHELL ===\n");
+    printf("Automatically rewrites fork+exec to posix_spawn!\n\n");
     printf("Commands:\n");
     printf("  stats  - Show statistics\n");
-    printf("  cache  - Show cache\n");
     printf("  reset  - Clear stats\n");
     printf("  help   - This help\n");
     printf("  exit   - Exit\n");
-    printf("\nUsage: Pass .c file to analyze\n");
-    printf("  Example: simple-spork> test.c\n");
+    printf("\nHow it works:\n");
+    printf("  1. Analyzes .c file for fork+exec pattern\n");
+    printf("  2. If found: rewrites code to use posix_spawn\n");
+    printf("  3. Compiles the (optimized) code\n");
+    printf("  4. Executes the binary\n");
     printf("===========================\n\n");
 }
 
-int cmd_cd(char **args) {
-    if (args[1] == NULL) {
-        fprintf(stderr, "cd: missing argument\n");
-        return 1;
-    }
-    if (chdir(args[1]) != 0) {
-        perror("cd");
-        return 1;
-    }
-    return 0;
-}
-
 int execute_command(char **args) {
-    pid_t pid;
-    int status;
+    if (!args[0]) return 0;
+    
+    // Must be a .c file
+    if (!strstr(args[0], ".c")) {
+        printf("Error: Only .c files supported\n");
+        return 1;
+    }
+    
     long start = get_time_us();
-    int can_optimize = 0;
-    char *executable = args[0];
     
-    // Check cache first
-    int cached = check_cache(args[0]);
+    // Get base name without .c
+    char basename[256];
+    strncpy(basename, args[0], sizeof(basename) - 1);
+    char *dot = strstr(basename, ".c");
+    if (dot) *dot = '\0';
     
-    if (cached == -1) {
-        // Not in cache - analyze
-        printf("[ANALYZING] %s... ", args[0]);
-        fflush(stdout);
-        
-        stats.analyzed_count++;
-        can_optimize = analyze_source_code(args[0]);
-        
-        if (can_optimize) {
-            printf("✓ Found exec() call, using vfork()\n");
-            stats.optimized_count++;
-        } else {
-            printf("✗ No exec() found, using fork()\n");
-        }
-        
-        add_cache(args[0], can_optimize);
-    } else {
-        // Use cached result
-        can_optimize = cached;
-        printf("[CACHED] %s -> %s\n", args[0], 
-               can_optimize ? "vfork()" : "fork()");
-    }
+    char executable[256];
+    snprintf(executable, sizeof(executable), "./%s", basename);
     
-    // If input is .c file, execute the compiled binary instead
-    if (strstr(args[0], ".c") != NULL) {
-        // Replace .c with nothing to get executable name
-        static char exe_path[256];
-        strncpy(exe_path, args[0], sizeof(exe_path) - 1);
-        char *dot = strstr(exe_path, ".c");
-        if (dot) {
-            *dot = '\0';  // Remove .c extension
-        }
-        
-        // Prepend ./ if not already there
-        if (exe_path[0] != '.' && exe_path[0] != '/') {
-            static char full_path[256];
-            snprintf(full_path, sizeof(full_path), "./%s", exe_path);
-            executable = full_path;
-        } else {
-            executable = exe_path;
-        }
-        
-        printf("    Executing: %s\n", executable);
-    }
+    // Check if we should optimize
+    printf("[ANALYZING] %s... ", args[0]);
+    fflush(stdout);
     
-    // Execute based on analysis
-    if (can_optimize) {
-        // Use vfork - much faster for fork+exec pattern!
-        pid = vfork();
-        if (pid < 0) {
-            perror("vfork");
+    int should_optimize = has_fork_exec_pattern(args[0]);
+    char source_to_compile[256];
+    
+    if (should_optimize) {
+        printf("✓ fork+exec found\n");
+        printf("[OPTIMIZING] Rewriting source to use posix_spawn()...\n");
+        
+        // Create optimized version
+        char opt_source[256];
+        snprintf(opt_source, sizeof(opt_source), "/tmp/spork_opt_%s.c", basename);
+        
+        if (!rewrite_to_posix_spawn(args[0], opt_source)) {
+            printf("Error: Failed to rewrite source\n");
             return 1;
-        } else if (pid == 0) {
-            // Child - MUST call exec or _exit immediately with vfork
-            execl(executable, executable, NULL);
-            _exit(1);
         }
-        stats.posix_spawn_calls++;  // Count as optimization
+        
+        printf("[REWRITTEN] Created: %s\n", opt_source);
+        strcpy(source_to_compile, opt_source);
+        stats.optimized_count++;
     } else {
-        // Use fork
-        pid = fork();
-        if (pid < 0) {
-            perror("fork");
-            return 1;
-        } else if (pid == 0) {
-            execl(executable, executable, NULL);
-            perror(executable);
-            exit(1);
-        }
-        stats.fork_calls++;
+        printf("✗ No fork+exec pattern\n");
+        strcpy(source_to_compile, args[0]);
+        stats.not_optimized_count++;
     }
     
+    // Compile
+    printf("[COMPILING] gcc %s -o %s...\n", source_to_compile, executable);
+    
+    char compile_cmd[512];
+    snprintf(compile_cmd, sizeof(compile_cmd), 
+             "gcc %s -o %s 2>&1", source_to_compile, executable);
+    
+    FILE *compile_out = popen(compile_cmd, "r");
+    if (compile_out) {
+        char line[256];
+        int has_errors = 0;
+        while (fgets(line, sizeof(line), compile_out)) {
+            printf("  %s", line);
+            has_errors = 1;
+        }
+        pclose(compile_out);
+        
+        if (has_errors) {
+            printf("[ERROR] Compilation failed\n");
+            return 1;
+        }
+    }
+    
+    printf("[COMPILED] ✓\n");
+    
+    // Execute
+    printf("[EXECUTING] %s\n", executable);
+    printf("--- OUTPUT START ---\n");
+    
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return 1;
+    } else if (pid == 0) {
+        execl(executable, executable, NULL);
+        perror("exec");
+        exit(1);
+    }
+    
+    int status;
     waitpid(pid, &status, 0);
+    
+    printf("--- OUTPUT END ---\n");
     
     long end = get_time_us();
     stats.total_spawns++;
     stats.total_time_us += (end - start);
+    
+    printf("[COMPLETED] Time: %ld μs\n\n", end - start);
     
     return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 }
 
 int is_builtin(char *cmd) {
     return (strcmp(cmd, "stats") == 0 ||
-            strcmp(cmd, "cache") == 0 ||
             strcmp(cmd, "reset") == 0 ||
             strcmp(cmd, "help") == 0 ||
-            strcmp(cmd, "exit") == 0 ||
-            strcmp(cmd, "cd") == 0);
+            strcmp(cmd, "exit") == 0);
 }
 
 int execute_builtin(char **args) {
     if (strcmp(args[0], "stats") == 0) {
         cmd_stats();
-    } else if (strcmp(args[0], "cache") == 0) {
-        cmd_cache();
     } else if (strcmp(args[0], "reset") == 0) {
         cmd_reset();
     } else if (strcmp(args[0], "help") == 0) {
@@ -277,8 +296,6 @@ int execute_builtin(char **args) {
     } else if (strcmp(args[0], "exit") == 0) {
         printf("Goodbye!\n");
         exit(0);
-    } else if (strcmp(args[0], "cd") == 0) {
-        return cmd_cd(args);
     }
     return 0;
 }
@@ -288,7 +305,7 @@ void shell_loop() {
     char *args[MAX_ARGS];
     
     while (1) {
-        printf("simple-spork> ");
+        printf("spork-rewrite> ");
         fflush(stdout);
         
         if (fgets(input, sizeof(input), stdin) == NULL) {
@@ -312,11 +329,11 @@ void shell_loop() {
 int main() {
     printf("\n");
     printf("╔════════════════════════════════════════╗\n");
-    printf("║   SIMPLE SPORK-SHELL (MVP)             ║\n");
-    printf("║   Analyzes .c source files only        ║\n");
+    printf("║   SPORK REWRITE SHELL v1.0             ║\n");
+    printf("║   Auto-rewrites fork+exec patterns     ║\n");
     printf("╚════════════════════════════════════════╝\n");
     printf("\n");
-    printf("Detects exec() in .c files and optimizes\n");
+    printf("Rewrites source code to use posix_spawn()\n");
     printf("Type 'help' for commands\n\n");
     
     shell_loop();

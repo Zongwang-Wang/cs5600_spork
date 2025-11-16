@@ -183,7 +183,7 @@ int cmd_cd(char **args) {
     return 0;
 }
 
-// Execute external command using fork()
+// Execute external command - compile from .c then run
 int execute_command(char **args) {
     pid_t pid;
     int status;
@@ -193,6 +193,52 @@ int execute_command(char **args) {
     getrusage(RUSAGE_CHILDREN, &rusage_before);
     start_time = get_time_us();
     
+    // Check if it's a .c file
+    char *input = args[0];
+    char executable[256];
+    int is_source = 0;
+    
+    if (strstr(input, ".c")) {
+        // It's a source file - need to compile it first
+        is_source = 1;
+        
+        // Get base name without .c
+        char basename[256];
+        strncpy(basename, input, sizeof(basename) - 1);
+        char *dot = strstr(basename, ".c");
+        if (dot) *dot = '\0';
+        
+        snprintf(executable, sizeof(executable), "./%s", basename);
+        
+        // Compile the source
+        printf("[COMPILING] gcc %s -o %s...\n", input, executable);
+        
+        char compile_cmd[512];
+        snprintf(compile_cmd, sizeof(compile_cmd), 
+                 "gcc %s -o %s 2>&1", input, executable);
+        
+        FILE *compile_out = popen(compile_cmd, "r");
+        if (compile_out) {
+            char line[256];
+            while (fgets(line, sizeof(line), compile_out)) {
+                printf("  %s", line);
+            }
+            pclose(compile_out);
+        }
+        
+        // Check if executable was created
+        if (access(executable, X_OK) != 0) {
+            printf("[ERROR] Compilation failed\n");
+            return 1;
+        }
+        
+        printf("[COMPILED] ✓\n");
+        printf("[EXECUTING] %s with fork()\n", executable);
+    } else {
+        // It's already an executable
+        strncpy(executable, input, sizeof(executable) - 1);
+    }
+    
     // Use standard fork()
     pid = fork();
     
@@ -201,10 +247,8 @@ int execute_command(char **args) {
         return 1;
     } else if (pid == 0) {
         // Child process
-        if (execvp(args[0], args) == -1) {
-            perror(args[0]);
-            exit(EXIT_FAILURE);
-        }
+        execl(executable, executable, NULL);
+        perror(executable);
         exit(EXIT_FAILURE);
     } else {
         // Parent process
@@ -295,7 +339,7 @@ int main(int argc, char *argv[]) {
     printf("\n");
     printf("╔════════════════════════════════════════╗\n");
     printf("║       FORK-SHELL v1.0                  ║\n");
-    printf("║  Standard fork() Shell with Stats     ║\n");
+    printf("║  Standard fork() Shell with Stats      ║\n");
     printf("╚════════════════════════════════════════╝\n");
     printf("\n");
     printf("Using: fork() [STANDARD]\n");
