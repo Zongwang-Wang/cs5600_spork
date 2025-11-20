@@ -211,26 +211,6 @@ for test in "${TESTS[@]}"; do
     fi
 done
 
-echo ""
-echo "╔════════════════════════════════════════════════════╗"
-echo "║                   CONCLUSION                       ║"
-echo "╚════════════════════════════════════════════════════╝"
-echo ""
-echo "Based on $((${#TESTS[@]} * $ITERATIONS)) total executions:"
-echo ""
-echo "Spork optimization demonstrates:"
-if [ ! -z "$PF_REDUCTION" ]; then
-    echo "  • ${PF_REDUCTION}% reduction in page faults"
-fi
-echo "  • Automatic source code rewriting works correctly"
-echo "  • Pattern recognition identifies fork+exec reliably"
-echo "  • Optimization preserves correctness (all tests pass)"
-echo ""
-echo "Trade-offs observed:"
-echo "  • Compilation/rewrite overhead adds to total time"
-echo "  • Execution time improvements vary by test"
-echo "  • Page fault reduction is most consistent benefit"
-echo ""
 
 # Save detailed results
 cat > benchmark_results.txt << EOF
@@ -331,8 +311,3 @@ fi
 
 echo ""
 echo "✅ Benchmark complete!"
-echo ""
-echo "Next steps:"
-echo "  1. Review benchmark_results.txt for detailed analysis"
-echo "  2. Use benchmark_data.csv to create graphs"
-echo "  3. Check /tmp/*_results.txt for full shell output"
