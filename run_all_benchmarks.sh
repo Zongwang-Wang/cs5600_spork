@@ -74,14 +74,15 @@ EOF
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Running fork-shell benchmark..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-run_test_suite "./fork-shell" "/tmp/fork_results.txt"
+USERNAME=$(whoami)
+run_test_suite "./fork-shell" "/tmp/fork_results_${USERNAME}.txt"
 echo "✓ Complete"
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Running spork-shell benchmark..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-run_test_suite "./spork-shell" "/tmp/spork_results.txt"
+run_test_suite "./spork-shell" "/tmp/spork_results_${USERNAME}.txt"
 echo "✓ Complete"
 echo ""
 
@@ -92,24 +93,24 @@ echo "╚═══════════════════════�
 echo ""
 
 # Parse fork-shell results
-FORK_TOTAL=$(grep "Total fork() calls:" /tmp/fork_results.txt | awk '{print $4}')
-FORK_TOTAL_TIME=$(grep "Total time (w/ compile):" /tmp/fork_results.txt | awk '{print $5}')
-FORK_EXEC_TIME=$(grep "Execution time only:" /tmp/fork_results.txt | awk '{print $4}')
-FORK_AVG_TOTAL=$(grep "Avg total per run:" /tmp/fork_results.txt | awk '{print $5}')
-FORK_AVG_EXEC=$(grep "Avg execution per run:" /tmp/fork_results.txt | awk '{print $5}')
-FORK_RSS=$(grep "Max RSS" /tmp/fork_results.txt | awk '{print $4}')
-FORK_PF=$(grep "Page faults:" /tmp/fork_results.txt | awk '{print $3}')
-FORK_CS=$(grep "Context switches:" /tmp/fork_results.txt | awk '{print $3}')
+FORK_TOTAL=$(grep "Total fork() calls:" /tmp/fork_results_${USERNAME}.txt | awk '{print $4}')
+FORK_TOTAL_TIME=$(grep "Total time (w/ compile):" /tmp/fork_results_${USERNAME}.txt | awk '{print $5}')
+FORK_EXEC_TIME=$(grep "Execution time only:" /tmp/fork_results_${USERNAME}.txt | awk '{print $4}')
+FORK_AVG_TOTAL=$(grep "Avg total per run:" /tmp/fork_results_${USERNAME}.txt | awk '{print $5}')
+FORK_AVG_EXEC=$(grep "Avg execution per run:" /tmp/fork_results_${USERNAME}.txt | awk '{print $5}')
+FORK_RSS=$(grep "Max RSS" /tmp/fork_results_${USERNAME}.txt | awk '{print $4}')
+FORK_PF=$(grep "Page faults:" /tmp/fork_results_${USERNAME}.txt | awk '{print $3}')
+FORK_CS=$(grep "Context switches:" /tmp/fork_results_${USERNAME}.txt | awk '{print $3}')
 
 # Parse spork-shell results
-SPORK_TOTAL=$(grep "Total programs run:" /tmp/spork_results.txt | awk '{print $4}')
-SPORK_TOTAL_TIME=$(grep "Total time (w/ rewrite+compile):" /tmp/spork_results.txt | awk '{print $5}')
-SPORK_EXEC_TIME=$(grep "Execution time only:" /tmp/spork_results.txt | awk '{print $4}')
-SPORK_AVG_TOTAL=$(grep "Avg total per run:" /tmp/spork_results.txt | awk '{print $5}')
-SPORK_AVG_EXEC=$(grep "Avg execution per run:" /tmp/spork_results.txt | awk '{print $5}')
-SPORK_RSS=$(grep "Max RSS" /tmp/spork_results.txt | awk '{print $4}')
-SPORK_PF=$(grep "Page faults:" /tmp/spork_results.txt | awk '{print $3}')
-SPORK_CS=$(grep "Context switches:" /tmp/spork_results.txt | awk '{print $3}')
+SPORK_TOTAL=$(grep "Total programs run:" /tmp/spork_results_${USERNAME}.txt | awk '{print $4}')
+SPORK_TOTAL_TIME=$(grep "Total time (w/ rewrite+compile):" /tmp/spork_results_${USERNAME}.txt | awk '{print $5}')
+SPORK_EXEC_TIME=$(grep "Execution time only:" /tmp/spork_results_${USERNAME}.txt | awk '{print $4}')
+SPORK_AVG_TOTAL=$(grep "Avg total per run:" /tmp/spork_results_${USERNAME}.txt | awk '{print $5}')
+SPORK_AVG_EXEC=$(grep "Avg execution per run:" /tmp/spork_results_${USERNAME}.txt | awk '{print $5}')
+SPORK_RSS=$(grep "Max RSS" /tmp/spork_results_${USERNAME}.txt | awk '{print $4}')
+SPORK_PF=$(grep "Page faults:" /tmp/spork_results_${USERNAME}.txt | awk '{print $3}')
+SPORK_CS=$(grep "Context switches:" /tmp/spork_results_${USERNAME}.txt | awk '{print $3}')
 
 # Display comparison table
 echo "┌──────────────────────────┬──────────────┬──────────────┬─────────────┐"
@@ -271,8 +272,8 @@ EOF
 echo "Detailed results saved to: benchmark_results.txt"
 echo ""
 echo "Raw shell outputs:"
-echo "  • fork-shell:  /tmp/fork_results.txt"
-echo "  • spork-shell: /tmp/spork_results.txt"
+echo "  • fork-shell:  /tmp/fork_results_${USERNAME}.txt"
+echo "  • spork-shell: /tmp/spork_results_${USERNAME}.txt"
 echo ""
 
 # Create CSV for graphing
@@ -324,3 +325,4 @@ fi
 echo ""
 echo "✅ Benchmark complete!"
 echo ""
+
