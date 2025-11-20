@@ -307,12 +307,16 @@ int execute_command(char **args) {
     printf("[ANALYZING] %s... ", args[0]);
     int should_optimize = has_fork_exec_pattern(args[0]);
     
+    // Get username for unique temp files
+    char *username = getenv("USER");
+    if (!username) username = "user";
+    
     if (should_optimize) {
         printf("✓ fork+exec\n");
         printf("[REWRITING]...\n");
         
         snprintf(source_to_compile, sizeof(source_to_compile), 
-                 "/tmp/spork_%s.c", basename);
+                 "/tmp/spork_%s_%s.c", username, basename);
         
         if (!rewrite_to_posix_spawn(args[0], source_to_compile)) {
             printf("[ERROR] Rewrite failed\n");
