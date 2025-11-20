@@ -1,5 +1,5 @@
 // Test: fork+exec with large memory allocation
-// Focus on RSS (memory usage) differences
+// Intention was to focus on RSS (memory usage) differences...
 
 #include <stdio.h>
 #include <stdlib.h>
