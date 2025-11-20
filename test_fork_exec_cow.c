@@ -1,5 +1,5 @@
 // Test: Simple fork+exec that fork-shell will use differently than spork
-// Keep it simple for the rewriter
+// We had to keep it really simple for the rewriter...
 
 #include <stdio.h>
 #include <unistd.h>
