@@ -101,10 +101,10 @@ SPORK_PF=$(grep "Page faults:" /tmp/spork_results.txt | awk '{print $3}')
 SPORK_CS=$(grep "Context switches:" /tmp/spork_results.txt | awk '{print $3}')
 
 # Display comparison table
-echo "┌──────────────────────────┬──────────────┬──────────────┬──────────────┐"
-echo "│      Metric              │  fork-shell  │ spork-shell  │  Difference  │"
-echo "├──────────────────────────┼──────────────┼──────────────┼──────────────┤"
-printf "│ Total runs               │ %12s │ %12s │              │\n" "$FORK_TOTAL" "$SPORK_TOTAL"
+echo "┌──────────────────────────┬──────────────┬──────────────┬─────────────┐"
+echo "│      Metric              │  fork-shell  │ spork-shell  │  Difference │"
+echo "├──────────────────────────┼──────────────┼──────────────┼─────────────┤"
+printf "│ Total runs               │ %12s │ %12s │             │\n" "$FORK_TOTAL" "$SPORK_TOTAL"
 printf "│ Total time (μs)          │ %12s │ %12s │ " "$FORK_TOTAL_TIME" "$SPORK_TOTAL_TIME"
 
 if [ ! -z "$FORK_TOTAL_TIME" ] && [ ! -z "$SPORK_TOTAL_TIME" ]; then
@@ -132,7 +132,7 @@ else
     printf "         N/A │\n"
 fi
 
-echo "├──────────────────────────┼──────────────┼──────────────┼──────────────┤"
+echo "├──────────────────────────┼──────────────┼──────────────┼─────────────┤"
 
 printf "│ Max RSS (KB)             │ %12s │ %12s │ " "$FORK_RSS" "$SPORK_RSS"
 
@@ -161,7 +161,7 @@ else
     printf "         N/A │\n"
 fi
 
-echo "└──────────────────────────┴──────────────┴──────────────┴──────────────┘"
+echo "└──────────────────────────┴──────────────┴──────────────┴─────────────┘"
 echo ""
 
 # Interpretation
