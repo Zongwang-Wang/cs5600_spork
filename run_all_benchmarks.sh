@@ -250,19 +250,6 @@ KEY FINDINGS
 Page Fault Reduction: ${PF_REDUCTION}%
 Execution Performance: ${AVG_DIFF}%
 
-INTERPRETATION
-──────────────
-The Spork optimization successfully reduces page faults by eliminating
-copy-on-write overhead when fork() is immediately followed by exec().
-This demonstrates the core insight from the Spork paper (HotOS '25):
-84% of fork() calls are followed by exec(), making them candidates for
-optimization through posix_spawn().
-
-Our implementation validates this through:
-1. Automatic pattern recognition in source code
-2. Source-level rewriting to posix_spawn()
-3. Measurable reduction in system overhead (page faults)
-
 DETAILED OUTPUT
 ───────────────
 Fork-shell: /tmp/fork_results.txt
