@@ -17,21 +17,27 @@ if [ ! -f "./fork-shell" ] || [ ! -f "./spork-shell" ]; then
     exit 1
 fi
 
-# Test files
-TESTS=(
-    "test_fork_exec.c"
-    "test_fork_only.c"
-    "test_fork_snapshot.c"
-    "test_fork_exec_cow.c"
-    "test_fork_exec_memory.c"
+# Test files with iterations (weighted to match 84% fork+exec pattern)
+declare -A TEST_ITERATIONS=(
+    ["test_fork_exec.c"]=30           # fork+exec
+    ["test_fork_exec_cow.c"]=30       # fork+exec with COW
+    ["test_fork_exec_memory.c"]=24    # fork+exec with memory
+    ["test_fork_only.c"]=8            # fork only
+    ["test_fork_snapshot.c"]=8        # fork only (checkpoint)
 )
+# Total: 84 fork+exec, 16 fork-only = 84% match!
 
-ITERATIONS=20  # Number of times to run each test
+TOTAL_RUNS=0
+for iterations in "${TEST_ITERATIONS[@]}"; do
+    TOTAL_RUNS=$((TOTAL_RUNS + iterations))
+done
 
 echo "Configuration:"
-echo "  Tests: ${#TESTS[@]}"
-echo "  Iterations per test: $ITERATIONS"
-echo "  Total runs per shell: $((${#TESTS[@]} * $ITERATIONS))"
+echo "  Tests: ${#TEST_ITERATIONS[@]}"
+echo "  Total runs: $TOTAL_RUNS"
+echo "  Fork+exec tests: 84 (84%)"
+echo "  Fork-only tests: 16 (16%)"
+echo "  → Matches real-world 84% pattern from Spork paper"
 echo ""
 echo "This will take a few minutes..."
 echo ""
@@ -40,24 +46,29 @@ echo ""
 run_test_suite() {
     local shell=$1
     local output_file=$2
+    local username=$(whoami)
     
-    # Create test script
-    cat > /tmp/test_script.txt << EOF
+    # Create test script with username in path
+    cat > /tmp/test_script_${username}.txt << EOF
 reset
 EOF
     
-    # Add each test multiple times
-    for test in "${TESTS[@]}"; do
-        for i in $(seq 1 $ITERATIONS); do
-            echo "$test" >> /tmp/test_script.txt
+    # Add each test with its specific iteration count
+    for test in "${!TEST_ITERATIONS[@]}"; do
+        iterations=${TEST_ITERATIONS[$test]}
+        for i in $(seq 1 $iterations); do
+            echo "$test" >> /tmp/test_script_${username}.txt
         done
     done
     
-    echo "stats" >> /tmp/test_script.txt
-    echo "exit" >> /tmp/test_script.txt
+    echo "stats" >> /tmp/test_script_${username}.txt
+    echo "exit" >> /tmp/test_script_${username}.txt
     
     # Run the shell
-    $shell < /tmp/test_script.txt > $output_file 2>&1
+    $shell < /tmp/test_script_${username}.txt > $output_file 2>&1
+    
+    # Cleanup
+    rm -f /tmp/test_script_${username}.txt
 }
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -117,7 +128,7 @@ fi
 printf "│ Execution time only (μs) │ %12s │ %12s │ " "$FORK_EXEC_TIME" "$SPORK_EXEC_TIME"
 
 if [ ! -z "$FORK_EXEC_TIME" ] && [ ! -z "$SPORK_EXEC_TIME" ]; then
-    EXEC_DIFF=$(echo "scale=2; (($SPORK_EXEC_TIME - $FORK_EXEC_TIME) / $FORK_EXEC_TIME) * 100" | bc 2>/dev/null)
+    EXEC_DIFF=$(echo "scale=2; (($FORK_EXEC_TIME - $SPORK_EXEC_TIME) / $FORK_EXEC_TIME) * 100" | bc 2>/dev/null)
     printf "%10s%% │\n" "$EXEC_DIFF"
 else
     printf "         N/A │\n"
@@ -126,7 +137,7 @@ fi
 printf "│ Avg execution per run    │ %12s │ %12s │ " "$FORK_AVG_EXEC" "$SPORK_AVG_EXEC"
 
 if [ ! -z "$FORK_AVG_EXEC" ] && [ ! -z "$SPORK_AVG_EXEC" ]; then
-    AVG_DIFF=$(echo "scale=2; (($SPORK_AVG_EXEC - $FORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
+    AVG_DIFF=$(echo "scale=2; (($FORK_AVG_EXEC - $SPORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
     printf "%10s%% │\n" "$AVG_DIFF"
 else
     printf "         N/A │\n"
@@ -146,7 +157,7 @@ fi
 printf "│ Page faults              │ %12s │ %12s │ " "$FORK_PF" "$SPORK_PF"
 
 if [ ! -z "$FORK_PF" ] && [ ! -z "$SPORK_PF" ]; then
-    PF_DIFF=$(echo "scale=2; (($SPORK_PF - $FORK_PF) / $FORK_PF) * 100" | bc 2>/dev/null)
+    PF_DIFF=$(echo "scale=2; (($FORK_PF - $SPORK_PF) / $FORK_PF) * 100" | bc 2>/dev/null)
     printf "%10s%% │\n" "$PF_DIFF"
 else
     printf "         N/A │\n"
@@ -202,24 +213,25 @@ echo ""
 
 # Show which tests were optimized
 echo "Test files analyzed:"
-for test in "${TESTS[@]}"; do
+for test in "${!TEST_ITERATIONS[@]}"; do
+    iterations=${TEST_ITERATIONS[$test]}
     # Check if it has exec
     if grep -q "execl\|execv" "$test" 2>/dev/null; then
-        echo "  ✓ $test - OPTIMIZED (fork+exec pattern)"
+        echo "  ✓ $test - OPTIMIZED ($iterations runs, fork+exec pattern)"
     else
-        echo "  ✗ $test - NOT optimized (no exec)"
+        echo "  ✗ $test - NOT optimized ($iterations runs, no exec)"
     fi
 done
 
+echo ""
 
 # Save detailed results
 cat > benchmark_results.txt << EOF
 COMPREHENSIVE SPORK BENCHMARK RESULTS
 =====================================
 Date: $(date)
-Iterations per test: $ITERATIONS
-Total tests: ${#TESTS[@]}
-Total executions: $((${#TESTS[@]} * $ITERATIONS))
+Test distribution: 84% fork+exec, 16% fork-only
+Total executions: $TOTAL_RUNS (matches real-world 84% pattern)
 
 AGGREGATE METRICS
 ─────────────────
@@ -311,3 +323,4 @@ fi
 
 echo ""
 echo "✅ Benchmark complete!"
+echo ""
