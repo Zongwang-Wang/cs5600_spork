@@ -20,7 +20,7 @@ int main() {
     // Write to all pages to ensure they're mapped
     memset(big_buffer, 'A', size);
     
-    printf("Allocated 10MB before fork\n");
+    printf("Allocated 100MB before fork\n");
     
     pid_t pid = fork();
     
