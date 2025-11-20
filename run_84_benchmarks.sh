@@ -111,7 +111,7 @@ SPORK_CS=$(grep "Context switches:" /tmp/spork_results.txt | awk '{print $3}')
 echo "┌──────────────────────────┬──────────────┬──────────────┬─────────────┐"
 echo "│      Metric              │  fork-shell  │ spork-shell  │  Difference │"
 echo "├──────────────────────────┼──────────────┼──────────────┼─────────────┤"
-printf "│ Total runs               │ %12s │ %12s │              │\n" "$FORK_TOTAL" "$SPORK_TOTAL"
+printf "│ Total runs               │ %12s │ %12s │             │\n" "$FORK_TOTAL" "$SPORK_TOTAL"
 printf "│ Total time (μs)          │ %12s │ %12s │ " "$FORK_TOTAL_TIME" "$SPORK_TOTAL_TIME"
 
 if [ ! -z "$FORK_TOTAL_TIME" ] && [ ! -z "$SPORK_TOTAL_TIME" ]; then
