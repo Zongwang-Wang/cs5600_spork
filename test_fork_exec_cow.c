@@ -15,6 +15,8 @@ int main() {
     pid_t pid = fork();
     
     if (pid == 0) {
+        for (int i = 0; i < 1000000; i += 1024)
+            data[i] += 1;   // triggers COW
         // Child - just exec immediately
         execl("/bin/echo", "echo", "Simple test!", NULL);
         _exit(1);
