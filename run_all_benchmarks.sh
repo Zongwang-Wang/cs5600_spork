@@ -120,8 +120,8 @@ printf "│ Total runs               │ %12s │ %12s │             │\n" "$
 printf "│ Total time (μs)          │ %12s │ %12s │ " "$FORK_TOTAL_TIME" "$SPORK_TOTAL_TIME"
 
 if [ ! -z "$FORK_TOTAL_TIME" ] && [ ! -z "$SPORK_TOTAL_TIME" ]; then
-    TOTAL_DIFF=$(echo "scale=2; (($SPORK_TOTAL_TIME - $FORK_TOTAL_TIME) / $FORK_TOTAL_TIME) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$TOTAL_DIFF"
+    TOTAL_DIFF=$(echo "scale=2; (($FORK_TOTAL_TIME - $SPORK_TOTAL_TIME) / $FORK_TOTAL_TIME) * 100" | bc 2>/dev/null)
+    printf "%+10s%% │\n" "$TOTAL_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -130,7 +130,7 @@ printf "│ Execution time only (μs) │ %12s │ %12s │ " "$FORK_EXEC_TIME" 
 
 if [ ! -z "$FORK_EXEC_TIME" ] && [ ! -z "$SPORK_EXEC_TIME" ]; then
     EXEC_DIFF=$(echo "scale=2; (($FORK_EXEC_TIME - $SPORK_EXEC_TIME) / $FORK_EXEC_TIME) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$EXEC_DIFF"
+    printf "%+10s%% │\n" "$EXEC_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -139,7 +139,7 @@ printf "│ Avg execution per run    │ %12s │ %12s │ " "$FORK_AVG_EXEC" "$
 
 if [ ! -z "$FORK_AVG_EXEC" ] && [ ! -z "$SPORK_AVG_EXEC" ]; then
     AVG_DIFF=$(echo "scale=2; (($FORK_AVG_EXEC - $SPORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$AVG_DIFF"
+    printf "%+10s%% │\n" "$AVG_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -149,8 +149,8 @@ echo "├───────────────────────�
 printf "│ Max RSS (KB)             │ %12s │ %12s │ " "$FORK_RSS" "$SPORK_RSS"
 
 if [ ! -z "$FORK_RSS" ] && [ ! -z "$SPORK_RSS" ]; then
-    RSS_DIFF=$(echo "scale=2; (($SPORK_RSS - $FORK_RSS) / $FORK_RSS) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$RSS_DIFF"
+    RSS_DIFF=$(echo "scale=2; (($FORK_RSS - $SPORK_RSS) / $FORK_RSS) * 100" | bc 2>/dev/null)
+    printf "%+10s%% │\n" "$RSS_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -159,7 +159,7 @@ printf "│ Page faults              │ %12s │ %12s │ " "$FORK_PF" "$SPORK_
 
 if [ ! -z "$FORK_PF" ] && [ ! -z "$SPORK_PF" ]; then
     PF_DIFF=$(echo "scale=2; (($FORK_PF - $SPORK_PF) / $FORK_PF) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$PF_DIFF"
+    printf "%+10s%% │\n" "$PF_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -167,8 +167,8 @@ fi
 printf "│ Context switches         │ %12s │ %12s │ " "$FORK_CS" "$SPORK_CS"
 
 if [ ! -z "$FORK_CS" ] && [ ! -z "$SPORK_CS" ]; then
-    CS_DIFF=$(echo "scale=2; (($SPORK_CS - $FORK_CS) / $FORK_CS) * 100" | bc 2>/dev/null)
-    printf "%10s%% │\n" "$CS_DIFF"
+    CS_DIFF=$(echo "scale=2; (($FORK_CS - $SPORK_CS) / $FORK_CS) * 100" | bc 2>/dev/null)
+    printf "%+10s%% │\n" "$CS_DIFF"
 else
     printf "         N/A │\n"
 fi
@@ -193,15 +193,20 @@ if [ ! -z "$FORK_PF" ] && [ ! -z "$SPORK_PF" ]; then
 fi
 
 if [ ! -z "$FORK_AVG_EXEC" ] && [ ! -z "$SPORK_AVG_EXEC" ]; then
-    if [ "$SPORK_AVG_EXEC" -lt "$FORK_AVG_EXEC" ]; then
-        SPEED_UP=$(echo "scale=2; (($FORK_AVG_EXEC - $SPORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
-        echo "✓ Execution Speedup: ${SPEED_UP}%"
+    SPEED_CHANGE=$(echo "scale=2; (($FORK_AVG_EXEC - $SPORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
+    IS_POSITIVE=$(echo "$SPEED_CHANGE > 0" | bc)
+    
+    if [ "$IS_POSITIVE" -eq 1 ]; then
+        echo "✓ Execution Speedup: ${SPEED_CHANGE}%"
         echo "  └─ Fork avg: $FORK_AVG_EXEC μs"
         echo "  └─ Spork avg: $SPORK_AVG_EXEC μs"
         echo "  └─ Saved: $((FORK_AVG_EXEC - SPORK_AVG_EXEC)) μs per execution"
     else
-        SLOWDOWN=$(echo "scale=2; (($SPORK_AVG_EXEC - $FORK_AVG_EXEC) / $FORK_AVG_EXEC) * 100" | bc 2>/dev/null)
+        SLOWDOWN=$(echo "scale=2; -1 * $SPEED_CHANGE" | bc)
         echo "⚠ Execution Slowdown: ${SLOWDOWN}%"
+        echo "  └─ Fork avg: $FORK_AVG_EXEC μs"
+        echo "  └─ Spork avg: $SPORK_AVG_EXEC μs"
+        echo "  └─ Added: $((SPORK_AVG_EXEC - FORK_AVG_EXEC)) μs per execution"
         echo "  └─ This is acceptable - page fault reduction is the primary goal"
     fi
     echo ""
@@ -252,8 +257,8 @@ Execution Performance: ${AVG_DIFF}%
 
 DETAILED OUTPUT
 ───────────────
-Fork-shell: /tmp/fork_results.txt
-Spork-shell: /tmp/spork_results.txt
+Fork-shell: /tmp/fork_results_${USERNAME}.txt
+Spork-shell: /tmp/spork_results_${USERNAME}.txt
 EOF
 
 echo "Detailed results saved to: benchmark_results.txt"
@@ -292,24 +297,25 @@ fi
 
 echo "📊 Performance Summary:"
 if [ ! -z "$AVG_DIFF" ]; then
-    if [ "$(echo "$AVG_DIFF < 0" | bc)" -eq 1 ]; then
-        SPEEDUP=$(echo "scale=1; -1 * $AVG_DIFF" | bc)
-        echo "   Execution Time: ${SPEEDUP}% faster"
+    IS_POSITIVE=$(echo "$AVG_DIFF > 0" | bc)
+    if [ "$IS_POSITIVE" -eq 1 ]; then
+        echo "   Execution Time: ${AVG_DIFF}% faster"
     else
-        echo "   Execution Time: ${AVG_DIFF}% slower"
+        SLOWDOWN=$(echo "scale=1; -1 * $AVG_DIFF" | bc)
+        echo "   Execution Time: ${SLOWDOWN}% slower"
     fi
 fi
 
 if [ ! -z "$PF_DIFF" ]; then
-    if [ "$(echo "$PF_DIFF < 0" | bc)" -eq 1 ]; then
-        PF_IMPROVE=$(echo "scale=1; -1 * $PF_DIFF" | bc)
-        echo "   Page Faults: ${PF_IMPROVE}% fewer"
+    IS_POSITIVE=$(echo "$PF_DIFF > 0" | bc)
+    if [ "$IS_POSITIVE" -eq 1 ]; then
+        echo "   Page Faults: ${PF_DIFF}% fewer"
     else
-        echo "   Page Faults: ${PF_DIFF}% more"
+        PF_INCREASE=$(echo "scale=1; -1 * $PF_DIFF" | bc)
+        echo "   Page Faults: ${PF_INCREASE}% more"
     fi
 fi
 
 echo ""
 echo "✅ Benchmark complete!"
 echo ""
-
