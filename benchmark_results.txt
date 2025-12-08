@@ -1,0 +1,26 @@
+COMPREHENSIVE SPORK BENCHMARK RESULTS
+=====================================
+Date: Sun Dec  7 21:19:25 EST 2025
+Test distribution: 84% fork+exec, 16% fork-only
+Total executions: 100 (matches real-world 84% pattern)
+
+AGGREGATE METRICS
+─────────────────
+                        fork-shell      spork-shell     Difference
+Total executions:       100            100
+Total time (μs):        5653135       5783440      -2.00%
+Execution time (μs):    1039497        1024979       1.00%
+Avg exec per run (μs):  10394         10249        1.00%
+Max RSS (KB):           103512              103764             0%
+Page faults:            42759               40645              4.00%
+Context switches:       524               611              -16.00%
+
+KEY FINDINGS
+────────────
+Page Fault Reduction: 4.00%
+Execution Performance: 1.00%
+
+DETAILED OUTPUT
+───────────────
+Fork-shell: /tmp/fork_results_zw335812.txt
+Spork-shell: /tmp/spork_results_zw335812.txt
