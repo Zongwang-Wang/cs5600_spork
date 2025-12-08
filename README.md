@@ -182,25 +182,6 @@ Based on 100 test executions:
 
 The page fault reduction is the primary success metric, as it demonstrates reduced copy-on-write overhead.
 
-## Key Findings
-
-From our benchmarking with 100 total executions:
-
-```
-Metric                  fork-shell    spork-shell    Improvement
-────────────────────────────────────────────────────────────────
-Avg execution time:     8,832 μs      8,578 μs       2.9% faster
-Page faults:            35,028        32,388         7.5% fewer
-Context switches:       521           580            Similar
-Max RSS:                103 MB        103 MB         Similar
-```
-
-**Interpretation:**
-- ✅ Consistent page fault reduction validates the optimization
-- ✅ Modest execution time improvements for small programs
-- ✅ Pattern recognition correctly identifies when to optimize
-- ✅ Preserves correctness (no optimization when unsafe)
-
 ## Limitations
 
 ### Current MVP Limitations
@@ -254,8 +235,13 @@ spork/
 
 ## References
 
-- Vögele, M., Thomas, C., & Hönig, T. (2025). Spork: A posix_spawn you can use as a fork. In Workshop on Hot Topics in Operating Systems (HotOS '25).
-- Baumann, A., Appavoo, J., Krieger, O., & Roscoe, T. (2019). A fork() in the road. In HotOS '19.
+- [1] M. Vögele, C. Thomas, and T. Hönig, “Spork: A posix_spawn you can use as a fork,” HotOS '25: Proceedings of the 2025 Workshop on Hot Topics in Operating Systems, pp. 96–102, May 2025, doi: https://doi.org/10.1145/3713082.3730396.
+- [2] S. Weiss, “Chapter 11. Process Creation and Termination”, in System Programming in Linux. NO STARCH PRESS, INC, 2025, doi: https://learning.oreilly.com/library/view/system-programming-in/0642572230128/.
+- [3] A. Baumann, J. Appavoo, O. Krieger, and T. Roscoe, “A fork() in the road,” HotOS ‘19: Proceedings of the Workshop on Hot Topics in Operating Systems, pp. 14-22, May 2019, doi: https://doi.org/10.1145/3317550.3321435.
+- [4] X. Wei et al., “No Provisioned Concurrency: Fast {RDMA-codesigned} Remote Fork for Serverless Computing,” 17th USENIX Symposium on Operating Systems Design and Implementation (OSDI 23), pp. 497–517, Available: https://www.usenix.org/conference/osdi23/presentation/wei-rdma
+- [5] K. Zhao, S. Gong, and P. Fonseca, “On-demand-fork,” EuroSys ’21: Proceedings of the Sixteenth European Conference on Computer Systems, pp. 540–555, Apr. 2021, doi: https://doi.org/10.1145/3447786.3456258.
+- [6] J. A. Kressel, H. Lefeuvre, and P. Olivier, “μFork: Supporting POSIX fork Within a Single-Address-Space OS,” Proceedings of the ACM SIGOPS 31st Symposium on Operating Systems Principles, pp. 18–35, Oct. 2025, doi: https://doi.org/10.1145/3731569.3764809. ‌
+
 
 ## Authors
 
