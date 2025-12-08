@@ -112,6 +112,9 @@ This runs all 5 tests × 20 iterations (100 total executions) and generates:
 - `benchmark_results.txt` - Detailed analysis
 - `benchmark_data.csv` - Data for graphing
 - Raw outputs in `/tmp/fork_results.txt` and `/tmp/spork_results.txt`
+- Access the rewritten code from /tmp `cat /tmp/spork_zw335812_test_fork_exec_cow.c` also the modified souce code file name will contain your username :) if you can not find it, just cd /tmp and ls to find 
+
+
 
 ## How It Works
 
